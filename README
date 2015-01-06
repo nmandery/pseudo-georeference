@@ -8,7 +8,3 @@ Supports JPEG and PNG images. Images will not be modified, instead world
 and projection files are generated.
 
 This tool has no external dependencies.
-
-Please note that the process of reading images is currently realy slow
-which is caused by the unoptimized algorithms of the piston image library.
-See  https://github.com/PistonDevelopers/image/issues/99

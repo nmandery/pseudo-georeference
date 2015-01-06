@@ -2,12 +2,14 @@ extern crate image;
 
 use std::os;
 use std::io::fs::{PathExtensions, readdir, File};
+use std::io::BufferedReader;
 use std::collections::HashSet;
 use std::ascii::OwnedAsciiExt;
 use std::num::Float;
 use std::cmp::partial_min;
 
-use image::GenericImage;
+use image::{GenericImage, ImageDecoder};
+use image::jpeg::JPEGDecoder;
 
 static WGS84_BBOX: &'static [f64] = &[-180.0, -90.0, 180.0, 90.0];
 static WGS84_WKT: &'static str = include_str!("4326.esriwkt");
@@ -15,7 +17,7 @@ static README_TEXT: &'static str = include_str!("../README");
 
 
 fn is_supported_extension(ext: Option<&str>) -> bool {
-    let supported: HashSet<&str> = vec!("jpg", "png", "jpeg").into_iter().collect();
+    let supported: HashSet<&str> = vec!("jpg", "png", "jpeg", "bmp", "tiff", "tif").into_iter().collect();
     match ext {
         None => false,
         Some(ext_str) => {
@@ -71,20 +73,41 @@ fn calculate_geotransform(width: u32, height: u32) -> [f64; 6] {
     ]
 }
 
-fn pseudo_georef(imagepath: &Path) -> Result<(), &str> {
-    println!("pseudo-georeferencing {}", imagepath.as_str().unwrap());
+fn read_image_size(imagepath: &Path) -> Result<(u32, u32), &str> {
+    let reader = BufferedReader::new(File::open(imagepath));
 
-    // opening the images is dead-slow, especially for large ones. 
+    // optimized code path for JPEGs - attempt to read jpeg headers
+    let mut jpegdecoder = JPEGDecoder::new(reader);
+    match jpegdecoder.dimensions() {
+        Ok(dims) => {
+            return Ok(dims);
+        } 
+        Err(_) => {
+            // ignore
+        }
+    }
+
+    // fallback - decode the whole image
+    // opening the complete images is dead-slow, especially for large ones. 
     // see https://github.com/PistonDevelopers/image/issues/99
-    //
-    // Reading the headers would be sufficent.
     let img = match image::open(imagepath) {
         Ok(i) => i,
         Err(_) => {
-            return Err("Can not read image");
+            return Err("Can not read image with generic decoder");
         }
     };
-    let (width, height) = img.dimensions();
+    Ok(img.dimensions())
+}
+
+fn pseudo_georef(imagepath: &Path) -> Result<(), &str> {
+    println!("pseudo-georeferencing {}", imagepath.as_str().unwrap());
+
+    let (width, height) = match read_image_size(imagepath) {
+        Ok(size) => size,
+        Err(msg) => {
+            return Err(msg);
+        }
+    };
 
     // generate world file
     // http://en.wikipedia.org/wiki/World_file
@@ -130,7 +153,6 @@ fn main() {
     println!("Running pseudo-georef ...");
 
     for dir in os::args().tail().iter() {
-        println!("dir {}", dir);
         let path = Path::new(dir);
         if !path.is_dir() {
             panic!("Path {} is not a directory", dir);
