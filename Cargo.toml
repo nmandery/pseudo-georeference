@@ -1,0 +1,9 @@
+[package]
+
+name = "pseudo-georeference"
+version = "0.0.1"
+authors = ["Nico Mandery <nico@nmandery.net>"]
+
+
+[dependencies.image]
+git = "https://github.com/PistonDevelopers/image"
