@@ -1,20 +1,31 @@
+#![feature(macro_rules)]
+
 extern crate image;
 
 use std::os;
 use std::io::fs::{PathExtensions, readdir, File};
 use std::io::{BufferedReader, IoError};
-use std::collections::HashSet;
 use std::ascii::OwnedAsciiExt;
 use std::num::Float;
 use std::cmp::partial_min;
 use std::error::FromError;
+use std::iter::IteratorExt;
 
 use image::{GenericImage, ImageDecoder, ImageError};
 use image::jpeg::JPEGDecoder;
 
+
 static WGS84_BBOX: &'static [f64] = &[-180.0, -90.0, 180.0, 90.0];
 static WGS84_WKT: &'static str = include_str!("4326.esriwkt");
 static README_TEXT: &'static str = include_str!("../README");
+static SUPPORTED_FORMAT_EXTS: &'static [&'static str] = &[
+    "jpg", 
+    "jpeg", 
+    "png", 
+    "gif", 
+    "tiff", 
+    "tif"
+];
 
 
 #[derive(Show)]
@@ -37,25 +48,28 @@ impl FromError<ImageError> for GeoRefError {
 
 
 fn is_supported_extension(ext: Option<&str>) -> bool {
-    let supported: HashSet<&str> = vec!("jpg", "png", "jpeg", "bmp", "tiff", "tif").into_iter().collect();
     match ext {
         None => false,
         Some(ext_str) => {
             let ext_string_lc = ext_str.to_string().into_ascii_lowercase();
             let ext_str_lc = ext_string_lc.as_slice();
-            supported.contains(ext_str_lc)
+
+            SUPPORTED_FORMAT_EXTS.iter()
+                .find(|&x| { *x == ext_str_lc })
+                .is_some()
         }
     }
 }
 
-fn difference(v1: f64, v2: f64) -> f64 {
-    (v1 - v2).abs()
+/// absolute difference between two values
+macro_rules! difference {
+    ($a:expr, $b:expr) => { ($a - $b).abs() }
 }
 
 fn calculate_geotransform(width: u32, height: u32) -> [f64; 6] {
 
-    let extent_world = [difference(WGS84_BBOX[0], WGS84_BBOX[2]),
-                        difference(WGS84_BBOX[1], WGS84_BBOX[3])];
+    let extent_world = [difference!(WGS84_BBOX[0], WGS84_BBOX[2]),
+                        difference!(WGS84_BBOX[1], WGS84_BBOX[3])];
     let ratio_world = extent_world[0] / extent_world[1];
     let ratio_img = width as f64 / height as f64;
 
