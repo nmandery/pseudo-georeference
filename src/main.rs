@@ -2,18 +2,38 @@ extern crate image;
 
 use std::os;
 use std::io::fs::{PathExtensions, readdir, File};
-use std::io::BufferedReader;
+use std::io::{BufferedReader, IoError};
 use std::collections::HashSet;
 use std::ascii::OwnedAsciiExt;
 use std::num::Float;
 use std::cmp::partial_min;
+use std::error::FromError;
 
-use image::{GenericImage, ImageDecoder};
+use image::{GenericImage, ImageDecoder, ImageError};
 use image::jpeg::JPEGDecoder;
 
 static WGS84_BBOX: &'static [f64] = &[-180.0, -90.0, 180.0, 90.0];
 static WGS84_WKT: &'static str = include_str!("4326.esriwkt");
 static README_TEXT: &'static str = include_str!("../README");
+
+
+#[derive(Show)]
+enum GeoRefError {
+    Io(IoError),
+    Image(ImageError)
+}
+
+impl FromError<IoError> for GeoRefError {
+    fn from_error(err: IoError) -> GeoRefError {
+        GeoRefError::Io(err)
+    }
+}
+
+impl FromError<ImageError> for GeoRefError {
+    fn from_error(err: ImageError) -> GeoRefError {
+        GeoRefError::Image(err)
+    }
+}
 
 
 fn is_supported_extension(ext: Option<&str>) -> bool {
@@ -73,66 +93,37 @@ fn calculate_geotransform(width: u32, height: u32) -> [f64; 6] {
     ]
 }
 
-fn read_image_size(imagepath: &Path) -> Result<(u32, u32), &str> {
+fn read_image_size(imagepath: &Path) -> Result<(u32, u32), GeoRefError> {
     let reader = BufferedReader::new(File::open(imagepath));
 
     // optimized code path for JPEGs - attempt to read jpeg headers
     let mut jpegdecoder = JPEGDecoder::new(reader);
     match jpegdecoder.dimensions() {
-        Ok(dims) => {
-            return Ok(dims);
-        } 
-        Err(_) => {
-            // ignore
-        }
+        Ok(dims) => return Ok(dims), 
+        Err(_) => {} // ignore
     }
 
     // fallback - decode the whole image
     // opening the complete images is dead-slow, especially for large ones. 
     // see https://github.com/PistonDevelopers/image/issues/99
-    let img = match image::open(imagepath) {
-        Ok(i) => i,
-        Err(_) => {
-            return Err("Can not read image with generic decoder");
-        }
-    };
+    let img = try!(image::open(imagepath));
     Ok(img.dimensions())
 }
 
-fn pseudo_georef(imagepath: &Path) -> Result<(), &str> {
+fn pseudo_georef(imagepath: &Path) -> Result<(), GeoRefError> {
     println!("pseudo-georeferencing {}", imagepath.as_str().unwrap());
 
-    let (width, height) = match read_image_size(imagepath) {
-        Ok(size) => size,
-        Err(msg) => {
-            return Err(msg);
-        }
-    };
+    let (width, height) = try!(read_image_size(imagepath));
 
-    // generate world file
-    // http://en.wikipedia.org/wiki/World_file
-    let mut wld_file = match File::create(&imagepath.with_extension("wld")) {
-        Ok(fh) => fh,
-        Err(_) => {
-            return Err("Can not write world file");
-        }
-    };
+    // generate world file. See: http://en.wikipedia.org/wiki/World_file
+    let mut wld_file = try!(File::create(&imagepath.with_extension("wld")));
     for n in calculate_geotransform(width, height).iter() {
-        if wld_file.write_fmt(format_args!("{}\n", n)).is_err() {
-            return Err("Can not write world file");
-        };
+        try!(wld_file.write_fmt(format_args!("{}\n", n)));
     }
 
     // generate projection file
-    let mut proj_file = match File::create(&imagepath.with_extension("prj")) {
-        Ok(fh) => fh,
-        Err(_) => {
-            return Err("Can not write projection file");
-        }
-    };
-    if proj_file.write_str(WGS84_WKT).is_err() {
-        return Err("Can not write projection file");
-    };
+    let mut proj_file = try!(File::create(&imagepath.with_extension("prj")));
+    try!(proj_file.write_str(WGS84_WKT));
 
     Ok(())
 }
