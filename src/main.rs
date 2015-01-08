@@ -15,8 +15,8 @@ use image::{GenericImage, ImageDecoder, ImageError};
 use image::jpeg::JPEGDecoder;
 
 
-static WGS84_BBOX: &'static [f64] = &[-180.0, -90.0, 180.0, 90.0];
-static WGS84_WKT: &'static str = include_str!("4326.esriwkt");
+static CRS_BBOX: &'static [f64] = &[-20026376.39, -20048966.10, 20026376.39, 20048966.10];
+static CRS_WKT: &'static str = include_str!("3857.esriwkt");
 static README_TEXT: &'static str = include_str!("../README");
 static SUPPORTED_FORMAT_EXTS: &'static [&'static str] = &[
     "jpg", 
@@ -85,8 +85,8 @@ impl RefBox {
     fn new(width: u32, height: u32) -> RefBox {
         let raster_size = RasterSize { width: width, height: height };
         
-        let extent_world = [difference!(WGS84_BBOX[0], WGS84_BBOX[2]),
-                            difference!(WGS84_BBOX[1], WGS84_BBOX[3])];
+        let extent_world = [difference!(CRS_BBOX[0], CRS_BBOX[2]),
+                            difference!(CRS_BBOX[1], CRS_BBOX[3])];
         let ratio_world = extent_world[0] / extent_world[1];
         let ratio_img = raster_size.width as f64 / raster_size.height as f64;
 
@@ -98,9 +98,9 @@ impl RefBox {
         }
 
         let center_world = [
-            partial_min(WGS84_BBOX[0], WGS84_BBOX[2]).expect("no min")
+            partial_min(CRS_BBOX[0], CRS_BBOX[2]).expect("no min")
                     + ( extent_world[0] / 2.0),
-            partial_min(WGS84_BBOX[1], WGS84_BBOX[3]).expect("no min")
+            partial_min(CRS_BBOX[1], CRS_BBOX[3]).expect("no min")
                     + ( extent_world[1] / 2.0)
         ];
 
@@ -186,7 +186,7 @@ fn pseudo_georef(imagepath: &Path) -> Result<(), GeoRefError> {
 
     // generate projection file
     let mut proj_file = try!(File::create(&imagepath.with_extension("prj")));
-    try!(proj_file.write_str(WGS84_WKT));
+    try!(proj_file.write_str(CRS_WKT));
 
     Ok(())
 }

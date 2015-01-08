@@ -1,8 +1,17 @@
-Pseudo-georeference arbitrary images by fitting them centered into a WGS84
-extent.
+Pseudo-georeference arbitrary images by fitting them centered into a 
+spherical mercator (EPSG:3857) extent.
 
 This is mostly a tool for preparing non-geographical imagery for the
 generation of tiles. This tools is probably less useful for geodata.
+The tiles can be generated with the gdal2tiles.py utility. Example:
+
+    gdal2tiles.py -n \
+        -z 0-3 \
+        -s EPSG:3857 \
+        -r cubic \
+        -p mercator \
+        -w none \
+        my-image.jpg tiles/
 
 Supports JPEG and PNG images. Images will not be modified, instead world
 and projection files are generated.
