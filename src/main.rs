@@ -47,6 +47,99 @@ impl FromError<ImageError> for GeoRefError {
 }
 
 
+/// absolute difference between two values
+macro_rules! difference {
+    ($a:expr, $b:expr) => { ($a - $b).abs() }
+}
+
+struct BoundingBox {
+    minx: f64,
+    miny: f64,
+    maxx: f64,
+    maxy: f64
+}
+
+impl BoundingBox {
+    fn width(&self) -> f64 {
+        difference!(self.minx, self.maxx)
+    }
+
+    fn height(&self) -> f64 {
+        difference!(self.miny, self.maxy)
+    }
+}
+
+struct RasterSize {
+    width: u32,
+    height: u32
+}
+
+struct RefBox {
+    bbox: BoundingBox,
+    size: RasterSize
+}
+
+
+impl RefBox {
+
+    fn new(width: u32, height: u32) -> RefBox {
+        let raster_size = RasterSize { width: width, height: height };
+        
+        let extent_world = [difference!(WGS84_BBOX[0], WGS84_BBOX[2]),
+                            difference!(WGS84_BBOX[1], WGS84_BBOX[3])];
+        let ratio_world = extent_world[0] / extent_world[1];
+        let ratio_img = raster_size.width as f64 / raster_size.height as f64;
+
+        let mut extent_img = extent_world.clone();
+        if ratio_world > ratio_img {
+            extent_img[0] = extent_img[0] / ratio_img;
+        } else {
+            extent_img[1] = extent_img[1] / ratio_img;
+        }
+
+        let center_world = [
+            partial_min(WGS84_BBOX[0], WGS84_BBOX[2]).expect("no min")
+                    + ( extent_world[0] / 2.0),
+            partial_min(WGS84_BBOX[1], WGS84_BBOX[3]).expect("no min")
+                    + ( extent_world[1] / 2.0)
+        ];
+
+        RefBox {
+            size: raster_size,
+            bbox: BoundingBox {
+                minx: center_world[0] - (extent_img[0] / 2.0),
+                miny: center_world[1] - (extent_img[1] / 2.0),
+                maxx: center_world[0] + (extent_img[0] / 2.0),
+                maxy: center_world[1] + (extent_img[1] / 2.0)
+            }
+        }
+    }
+
+    fn world_file_values(&self) -> [f64; 6] {
+        [
+            //  pixel size in the x-direction in map units/pixel
+            self.bbox.width() / self.size.width as f64,
+
+            // rotation about y-axis
+            0.0f64,
+
+            // rotation about x-axis
+            0.0f64,
+
+            // pixel size in the y-direction in map units, almost always negative
+            self.bbox.height() / self.size.height as f64 * -1.0f64,
+
+            // x-coordinate of the center of the upper left pixel
+            self.bbox.minx,
+
+            // y-coordinate of the center of the upper left pixel
+            self.bbox.maxy
+        ]
+    }
+
+}
+
+
 fn is_supported_extension(ext: Option<&str>) -> bool {
     match ext {
         None => false,
@@ -61,51 +154,6 @@ fn is_supported_extension(ext: Option<&str>) -> bool {
     }
 }
 
-/// absolute difference between two values
-macro_rules! difference {
-    ($a:expr, $b:expr) => { ($a - $b).abs() }
-}
-
-fn calculate_geotransform(width: u32, height: u32) -> [f64; 6] {
-
-    let extent_world = [difference!(WGS84_BBOX[0], WGS84_BBOX[2]),
-                        difference!(WGS84_BBOX[1], WGS84_BBOX[3])];
-    let ratio_world = extent_world[0] / extent_world[1];
-    let ratio_img = width as f64 / height as f64;
-
-    let mut extent_img = extent_world.clone();
-    if ratio_world > ratio_img {
-        extent_img[0] = extent_img[0] / ratio_img;
-    } else {
-        extent_img[1] = extent_img[1] / ratio_img;
-    }
-
-    let center_world = [
-        partial_min(WGS84_BBOX[0], WGS84_BBOX[2]).expect("no min") + ( extent_world[0] / 2.0),
-        partial_min(WGS84_BBOX[1], WGS84_BBOX[3]).expect("no min") + ( extent_world[1] / 2.0)
-    ];
-
-
-    [
-        //  pixel size in the x-direction in map units/pixel
-        extent_img[0] / width as f64,
-
-        // rotation about y-axis
-        0.0f64,
-
-        // rotation about x-axis
-        0.0f64,
-
-        // pixel size in the y-direction in map units, almost always negative
-        extent_img[1] / height as f64 * -1.0f64,
-
-        // x-coordinate of the center of the upper left pixel
-        center_world[0] - (extent_img[0] / 2.0),
-
-        // y-coordinate of the center of the upper left pixel
-        center_world[1] + (extent_img[1] / 2.0)
-    ]
-}
 
 fn read_image_size(imagepath: &Path) -> Result<(u32, u32), GeoRefError> {
     let reader = BufferedReader::new(File::open(imagepath));
@@ -128,10 +176,11 @@ fn pseudo_georef(imagepath: &Path) -> Result<(), GeoRefError> {
     println!("pseudo-georeferencing {}", imagepath.as_str().unwrap());
 
     let (width, height) = try!(read_image_size(imagepath));
+    let refbox = RefBox::new(width, height);
 
     // generate world file. See: http://en.wikipedia.org/wiki/World_file
     let mut wld_file = try!(File::create(&imagepath.with_extension("wld")));
-    for n in calculate_geotransform(width, height).iter() {
+    for n in refbox.world_file_values().iter() {
         try!(wld_file.write_fmt(format_args!("{}\n", n)));
     }
 
