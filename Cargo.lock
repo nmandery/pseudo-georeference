@@ -3,26 +3,27 @@ name = "pseudo-georeference"
 version = "0.0.1"
 dependencies = [
  "image 0.2.0-alpha.4 (git+https://github.com/PistonDevelopers/image)",
+ "rustc-serialize 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "image"
 version = "0.2.0-alpha.4"
-source = "git+https://github.com/PistonDevelopers/image#0e1ba1656cd3b4540496d9915ea8b33edd383309"
+source = "git+https://github.com/PistonDevelopers/image#2ffc2222737ee6ed2d214ca1dde30d58fc9df430"
 dependencies = [
- "num 0.1.5 (git+https://github.com/rust-lang/num)",
+ "num 0.1.8 (git+https://github.com/rust-lang/num)",
 ]
 
 [[package]]
 name = "num"
-version = "0.1.5"
-source = "git+https://github.com/rust-lang/num#431dd18aff182b04050122cba0604c6ad9a19446"
+version = "0.1.8"
+source = "git+https://github.com/rust-lang/num#cbf04cf6646f99b21e5262a99791ee85063203ba"
 dependencies = [
- "rustc-serialize 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rustc-serialize"
-version = "0.2.5"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 

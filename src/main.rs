@@ -1,8 +1,7 @@
-#![feature(macro_rules)]
-
 extern crate image;
+extern crate getopts;
+extern crate "rustc-serialize" as rustc_serialize;
 
-use std::os;
 use std::io::fs::{PathExtensions, readdir, File};
 use std::io::{BufferedReader, IoError};
 use std::ascii::OwnedAsciiExt;
@@ -10,6 +9,9 @@ use std::num::Float;
 use std::cmp::partial_min;
 use std::error::FromError;
 use std::iter::IteratorExt;
+use std::string::FromUtf8Error;
+
+use rustc_serialize::json;
 
 use image::{GenericImage, ImageDecoder, ImageError};
 use image::jpeg::JPEGDecoder;
@@ -31,7 +33,8 @@ static SUPPORTED_FORMAT_EXTS: &'static [&'static str] = &[
 #[derive(Show)]
 enum GeoRefError {
     Io(IoError),
-    Image(ImageError)
+    Image(ImageError),
+    FromUtf8Error(FromUtf8Error)
 }
 
 impl FromError<IoError> for GeoRefError {
@@ -46,12 +49,19 @@ impl FromError<ImageError> for GeoRefError {
     }
 }
 
+impl FromError<FromUtf8Error> for GeoRefError {
+    fn from_error(err: FromUtf8Error) -> GeoRefError {
+        GeoRefError::FromUtf8Error(err)
+    }
+}
+
 
 /// absolute difference between two values
 macro_rules! difference {
     ($a:expr, $b:expr) => { ($a - $b).abs() }
 }
 
+#[derive(RustcEncodable)]
 struct BoundingBox {
     minx: f64,
     miny: f64,
@@ -69,14 +79,18 @@ impl BoundingBox {
     }
 }
 
+#[derive(RustcEncodable)]
 struct RasterSize {
     width: u32,
     height: u32
 }
 
+#[derive(RustcEncodable)]
 struct RefBox {
     bbox: BoundingBox,
-    size: RasterSize
+    size: RasterSize,
+    name: Option<String>,
+    filename: Option<String>
 }
 
 
@@ -111,7 +125,9 @@ impl RefBox {
                 miny: center_world[1] - (extent_img[1] / 2.0),
                 maxx: center_world[0] + (extent_img[0] / 2.0),
                 maxy: center_world[1] + (extent_img[1] / 2.0)
-            }
+            },
+            name: None,
+            filename: None
         }
     }
 
@@ -172,11 +188,17 @@ fn read_image_size(imagepath: &Path) -> Result<(u32, u32), GeoRefError> {
     Ok(img.dimensions())
 }
 
-fn pseudo_georef(imagepath: &Path) -> Result<(), GeoRefError> {
-    println!("pseudo-georeferencing {}", imagepath.as_str().unwrap());
+fn pseudo_georef(imagepath: &Path) -> Result<RefBox, GeoRefError> {
+    println!("pseudo-georeferencing {}", imagepath.as_str().unwrap_or("?"));
 
     let (width, height) = try!(read_image_size(imagepath));
-    let refbox = RefBox::new(width, height);
+    let mut refbox = RefBox::new(width, height);
+
+    let stem_res = imagepath.filestem_str();
+    if stem_res.is_some() {
+        refbox.name = Some(String::from_str(stem_res.unwrap()));
+    }
+    refbox.filename = Some(try!(String::from_utf8(imagepath.clone().into_vec())));
 
     // generate world file. See: http://en.wikipedia.org/wiki/World_file
     let mut wld_file = try!(File::create(&imagepath.with_extension("wld")));
@@ -188,25 +210,41 @@ fn pseudo_georef(imagepath: &Path) -> Result<(), GeoRefError> {
     let mut proj_file = try!(File::create(&imagepath.with_extension("prj")));
     try!(proj_file.write_str(CRS_WKT));
 
-    Ok(())
+    Ok(refbox)
 }
 
 
-fn print_usage() {
-    println!("Usage:\npseudo-georef [DIRECTORY] ...\n");
-    println!("{}\n", README_TEXT);
+fn print_usage(progname: &str, opts: &[getopts::OptGroup]) {
+    let brief = format!("Usage:\n{} [options] DIRECTORY ...", progname);
+    print!("{}\n{}\n", getopts::usage(brief.as_slice(), opts), README_TEXT);
 }
 
 fn main() {
+    let args = std::os::args();
+    let progname = args[0].as_slice();
 
-    if os::args().len() < 2 {
-        print_usage();
+    let opts = &[
+        getopts::optopt("j", "json", "Write a JSON file with boundingboxes and sizes of the images", "JSON"),
+        getopts::optflag("h", "help", "Print this help")
+    ];
+    let optmatches = match getopts::getopts(args.tail(), opts) {
+        Ok(m)   => m,
+        Err(e)  => { panic!(e.to_string()) }
+    };
+
+    if optmatches.opt_present("h") {
+        print_usage(progname, opts);
+        return;
+    }
+    if optmatches.free.is_empty() {
+        print_usage(progname, opts);
+        std::os::set_exit_status(1);
         return;
     }
 
-    println!("Running pseudo-georef ...");
+    println!("Running {} ...", progname);
 
-    for dir in os::args().tail().iter() {
+    for dir in optmatches.free.iter() {
         let path = Path::new(dir);
         if !path.is_dir() {
             panic!("Path {} is not a directory", dir);
@@ -218,13 +256,28 @@ fn main() {
             }
         };
 
+        let mut refboxes: Vec<RefBox> = vec!();
         for entity in entites.iter().filter(|&x| is_supported_extension(x.extension_str())) {
             match pseudo_georef(entity) {
-                Ok(()) => {},
+                Ok(refbox) => {
+                    refboxes.push(refbox);
+                },
                 Err(e) => {
-                    panic!("{}", e);
+                    panic!("{:?}", e);
                 }
             }
+        }
+
+        if optmatches.opt_present("j") {
+            let json_path = Path::new(
+                    optmatches.opt_str("j").expect("Missing path of JSON file.")
+                );
+            let mut json_file = File::create(&json_path).unwrap();
+            let jw_res = json_file.write_str(json::encode(&refboxes).as_slice());
+            if jw_res.is_err() {
+                panic!("Could not write to json file: {:?}", jw_res.err());
+            };
+
         }
     }
 }

@@ -4,6 +4,8 @@ name = "pseudo-georeference"
 version = "0.0.1"
 authors = ["Nico Mandery <nico@nmandery.net>"]
 
+[dependencies]
+rustc-serialize = "0.2"
 
 [dependencies.image]
 git = "https://github.com/PistonDevelopers/image"
