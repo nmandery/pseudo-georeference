@@ -2,28 +2,28 @@
 name = "pseudo-georeference"
 version = "0.0.1"
 dependencies = [
- "image 0.2.0-alpha.6 (git+https://github.com/PistonDevelopers/image)",
- "rustc-serialize 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "image 0.2.0-alpha.8 (git+https://github.com/PistonDevelopers/image)",
+ "rustc-serialize 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "image"
-version = "0.2.0-alpha.6"
-source = "git+https://github.com/PistonDevelopers/image#52fe43246575732cc42ba8aa66e2ab1faaab179a"
+version = "0.2.0-alpha.8"
+source = "git+https://github.com/PistonDevelopers/image#ba4ffb85c43bf955bc210832d03280920ccd7d63"
 dependencies = [
- "num 0.1.9 (git+https://github.com/rust-lang/num)",
+ "num 0.1.10 (git+https://github.com/rust-lang/num)",
 ]
 
 [[package]]
 name = "num"
-version = "0.1.9"
-source = "git+https://github.com/rust-lang/num#51b94c5e2e00204c7159a13ba0671d8e3fed10df"
+version = "0.1.10"
+source = "git+https://github.com/rust-lang/num#c05cd530dbc1cc2e56f936524400b368e07ee5cb"
 dependencies = [
- "rustc-serialize 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rustc-serialize"
-version = "0.2.8"
+version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 

@@ -2,8 +2,8 @@ extern crate image;
 extern crate getopts;
 extern crate "rustc-serialize" as rustc_serialize;
 
-use std::io::fs::{PathExtensions, readdir, File};
-use std::io::{BufferedReader, IoError};
+use std::old_io::fs::{PathExtensions, readdir, File};
+use std::old_io::{BufferedReader, IoError};
 use std::ascii::OwnedAsciiExt;
 use std::num::Float;
 use std::cmp::partial_min;
@@ -273,7 +273,13 @@ fn main() {
                     optmatches.opt_str("j").expect("Missing path of JSON file.")
                 );
             let mut json_file = File::create(&json_path).unwrap();
-            let jw_res = json_file.write_str(json::encode(&refboxes).as_slice());
+            let json_data = match json::encode(&refboxes) {
+                Ok(s) => s,
+                Err(e) => {
+                    panic!("{:?}", e);
+                }
+            };
+            let jw_res = json_file.write_str(json_data.as_slice());
             if jw_res.is_err() {
                 panic!("Could not write to json file: {:?}", jw_res.err());
             };
