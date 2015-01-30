@@ -1,3 +1,10 @@
+#![feature(core)]
+#![feature(os)]
+#![feature(io)]
+#![feature(collections)]
+#![feature(path)]
+#![feature(std_misc)]
+
 extern crate image;
 extern crate getopts;
 extern crate "rustc-serialize" as rustc_serialize;
@@ -214,20 +221,19 @@ fn pseudo_georef(imagepath: &Path) -> Result<RefBox, GeoRefError> {
 }
 
 
-fn print_usage(progname: &str, opts: &[getopts::OptGroup]) {
+fn print_usage(progname: &str, opts: getopts::Options) {
     let brief = format!("Usage:\n{} [options] DIRECTORY ...", progname);
-    print!("{}\n{}\n", getopts::usage(brief.as_slice(), opts), README_TEXT);
+    print!("{}\n{}\n", opts.usage(brief.as_slice()), README_TEXT);
 }
 
 fn main() {
     let args = std::os::args();
     let progname = args[0].as_slice();
 
-    let opts = &[
-        getopts::optopt("j", "json", "Write a JSON file with boundingboxes and sizes of the images", "JSON"),
-        getopts::optflag("h", "help", "Print this help")
-    ];
-    let optmatches = match getopts::getopts(args.tail(), opts) {
+    let mut opts = getopts::Options::new();
+    opts.optopt("j", "json", "Write a JSON file with boundingboxes and sizes of the images", "JSON");
+    opts.optflag("h", "help", "Print this help");
+    let optmatches = match opts.parse(args.tail()) {
         Ok(m)   => m,
         Err(e)  => { panic!(e.to_string()) }
     };

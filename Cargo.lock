@@ -2,9 +2,15 @@
 name = "pseudo-georeference"
 version = "0.0.1"
 dependencies = [
+ "getopts 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "image 0.2.0-alpha.8 (git+https://github.com/PistonDevelopers/image)",
  "rustc-serialize 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "getopts"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "image"
