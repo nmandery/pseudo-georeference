@@ -37,7 +37,7 @@ static SUPPORTED_FORMAT_EXTS: &'static [&'static str] = &[
 ];
 
 
-#[derive(Show)]
+#[derive(Debug)]
 enum GeoRefError {
     Io(IoError),
     Image(ImageError),
