@@ -1,7 +1,9 @@
 #![feature(core)]
+#![feature(exit_status)]
+#![feature(old_io)]
 #![feature(os)]
-#![feature(io)]
 #![feature(collections)]
+#![feature(old_path)]
 #![feature(path)]
 #![feature(std_misc)]
 
@@ -221,19 +223,28 @@ fn pseudo_georef(imagepath: &Path) -> Result<RefBox, GeoRefError> {
 }
 
 
-fn print_usage(progname: &str, opts: getopts::Options) {
+fn print_usage(progname: String, opts: getopts::Options) {
     let brief = format!("Usage:\n{} [options] DIRECTORY ...", progname);
     print!("{}\n{}\n", opts.usage(brief.as_slice()), README_TEXT);
 }
 
 fn main() {
-    let args = std::os::args();
-    let progname = args[0].as_slice();
+    let args = std::env::args();
+    let progname = match std::env::current_exe() {
+        Ok(exe)    => {
+            let exe_name = match exe.into_os_string().into_string() {
+                Ok(n) => n,
+                Err(_) => panic!("unable to convert exe_name to string")
+            };
+            exe_name
+        },
+        Err(_) => String::from_str("pseudo-georef")
+    };
 
     let mut opts = getopts::Options::new();
     opts.optopt("j", "json", "Write a JSON file with boundingboxes and sizes of the images", "JSON");
     opts.optflag("h", "help", "Print this help");
-    let optmatches = match opts.parse(args.tail()) {
+    let optmatches = match opts.parse(args) {
         Ok(m)   => m,
         Err(e)  => { panic!(e.to_string()) }
     };
@@ -244,7 +255,7 @@ fn main() {
     }
     if optmatches.free.is_empty() {
         print_usage(progname, opts);
-        std::os::set_exit_status(1);
+        std::env::set_exit_status(1);
         return;
     }
 
